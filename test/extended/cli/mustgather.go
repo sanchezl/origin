@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -49,8 +50,6 @@ var _ = g.Describe("[cli] oc adm must-gather", func() {
 			{tempDir, "cluster-scoped-resources", "config.openshift.io", "schedulers.yaml"},
 			{tempDir, "namespaces", "openshift-kube-apiserver", "core", "configmaps.yaml"},
 			{tempDir, "namespaces", "openshift-kube-apiserver", "core", "secrets.yaml"},
-			{tempDir, "audit_logs", "kube-apiserver.audit_logs_listing"},
-			{tempDir, "audit_logs", "openshift-apiserver.audit_logs_listing"},
 			{tempDir, "host_service_logs", "masters", "crio_service.log"},
 			{tempDir, "host_service_logs", "masters", "kubelet_service.log"},
 		}
@@ -71,6 +70,22 @@ var _ = g.Describe("[cli] oc adm must-gather", func() {
 		}
 		if len(emptyFiles) > 0 {
 			o.Expect(fmt.Errorf("expected files should not be empty: %s", strings.Join(emptyFiles, ","))).NotTo(o.HaveOccurred())
+		}
+
+		auditLogListings := []string{
+			path.Join(tempDir, "audit_logs", "kube-apiserver.audit_logs_listing"),
+			path.Join(tempDir, "audit_logs", "openshift-apiserver.audit_logs_listing"),
+		}
+		for _, auditLogListing := range auditLogListings {
+			o.Expect(auditLogListing).To(o.BeAnExistingFile())
+			listing, err := os.Open(auditLogListing)
+			o.Expect(err).ToNot(o.HaveOccurred())
+			scanner := bufio.NewScanner(listing)
+			for scanner.Scan() {
+				entry := strings.Split(scanner.Text(), " ")
+				expectedAuditLogFile := path.Join(tempDir, "audit_logs", entry[0]+"-"+entry[1]+".gz")
+				o.Expect(expectedAuditLogFile).To(o.BeAnExistingFile())
+			}
 		}
 
 	})
